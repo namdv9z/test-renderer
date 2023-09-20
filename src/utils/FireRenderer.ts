@@ -29,6 +29,8 @@ export class FireRenderer implements Disposable {
 
   private newShader(context: WebGLRenderingContext): Shader {
     const VS = /*glsl*/ `
+    attribute vec4 ${Shader.POSITION};
+
     attribute vec4 ${Shader.COLOR};
     uniform mat4 ${Shader.MVP_MATRIX};
     varying vec4 v_color;
