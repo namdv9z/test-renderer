@@ -1,4 +1,10 @@
-import { Disposable, Mesh, Position2Attribute, Shader } from "gdxts";
+import {
+  Disposable,
+  Mesh,
+  Position2Attribute,
+  Shader,
+  TexCoordAttribute,
+} from "gdxts";
 
 export class FireRenderer implements Disposable {
   context: WebGLRenderingContext;
@@ -20,7 +26,12 @@ export class FireRenderer implements Disposable {
         "Can't have more than 10920 triangles per batch: " + maxVertices
       );
     this.context = context;
-    this.mesh = new Mesh(context, [new Position2Attribute()], maxVertices, 0);
+    this.mesh = new Mesh(
+      context,
+      [new Position2Attribute(), new TexCoordAttribute()],
+      maxVertices,
+      0
+    );
     let gl = this.context;
 
     // this.shader = Shader.newColored(gl);
@@ -29,15 +40,17 @@ export class FireRenderer implements Disposable {
 
   private newShader(context: WebGLRenderingContext): Shader {
     const VS = /*glsl*/ `
+    // attribute vec2 ${Shader.TEXCOORDS};
     attribute vec4 ${Shader.POSITION};
-
     attribute vec4 ${Shader.COLOR};
     uniform mat4 ${Shader.MVP_MATRIX};
     varying vec4 v_color;
+    varying vec2 v_texCoords;
 
     void main () {
       v_color = ${Shader.COLOR};
       gl_Position = ${Shader.MVP_MATRIX} * ${Shader.POSITION};
+      v_texCoords = vec2(0,1);
     }
     `;
 
@@ -53,8 +66,10 @@ export class FireRenderer implements Disposable {
     vec2 fragCoord; 
     uniform mat4 ${Shader.MVP_MATRIX};
     uniform float iTime;
-    uniform vec3 iResolution;
-    #define S(v,r) smoothstep( r, r+ 3./iResolution.y, v ) 
+    //uniform vec3 iResolution;
+    varying vec2 v_texCoords;
+
+    // #define S(v,r) smoothstep( r, r+ 3./iResolution.y, v ) 
     vec2 hash(vec2 p){
         p = vec2( dot(p,vec2(137.1,373.7)), dot(p,vec2(269.5,183.7)) ); 
         return fract(sin(p)*43758.37); 
@@ -78,7 +93,7 @@ export class FireRenderer implements Disposable {
 
     void main()
     {
-        vec2 uv = (2.*fragCoord-iResolution.xy)/iResolution.y;
+        vec2 uv = v_texCoords;
 
         float c = worley(uv + vec2(0.,-iTime))*0.5;
         c += worley(uv*2.+vec2(sin(iTime*2.)*0.5,-iTime*6.))*0.5;//2 Layers worley
@@ -116,7 +131,9 @@ export class FireRenderer implements Disposable {
     this.isDrawing = true;
 
     this.shader.bind();
+    this.shader.setUniformf("iTime", _time);
     this.shader.setUniform4x4f(Shader.MVP_MATRIX, this.projectionValues);
+    // this.shader.setUniform4x4f(Shader.TEXCOORDS, this.projectionValues);
 
     let gl = this.context;
     gl.enable(gl.BLEND);
@@ -128,29 +145,47 @@ export class FireRenderer implements Disposable {
     );
   }
 
-  private vertex(x: number, y: number) {
+  private vertex(x: number, y: number, u: number, v: number) {
     let idx = this.vertexIndex;
     let vertices = this.mesh.getVertices();
     vertices[idx++] = x;
     vertices[idx++] = y;
+    vertices[idx++] = u;
+    vertices[idx++] = v;
     this.vertexIndex = idx;
   }
 
-  public draw(x: number, y: number, width: number, height: number) {
+  public draw(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    _time?: number
+  ) {
     const x2 = x + width;
     const y2 = y;
     const x3 = x + width;
     const y3 = y + height;
     const x4 = x;
     const y4 = y + height;
+
+    const u = 0;
+    const v = 0;
+    const u2 = 1;
+    const v2 = 0;
+    const u3 = 1;
+    const v3 = 1;
+    const u4 = 0;
+    const v4 = 1;
+
     if (!this.isDrawing)
       throw new Error("ShapeRenderer.begin() has not been called");
-    this.vertex(x, y);
-    this.vertex(x2, y2);
-    this.vertex(x3, y3);
-    this.vertex(x3, y3);
-    this.vertex(x4, y4);
-    this.vertex(x, y);
+    this.vertex(x, y, u, v);
+    this.vertex(x2, y2, u2, v2);
+    this.vertex(x3, y3, u3, v3);
+    this.vertex(x3, y3, u3, v3);
+    this.vertex(x4, y4, u4, v4);
+    this.vertex(x, y, u, v);
   }
 
   end() {
