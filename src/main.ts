@@ -1,5 +1,6 @@
 import { createGameLoop, createStage, createViewport } from "gdxts";
-import { FireRenderer } from "./utils/FireRenderer";
+import { FireRenderer } from "./components/FireRenderer";
+import { GradientRenderer } from "./components/GradientFlow";
 // import dimensions from "./client/data-general/dimension";
 // import { getGame } from "./util/gameUtil";
 
@@ -20,6 +21,7 @@ const init = async () => {
   camera.setYDown(true);
 
   const fire = new FireRenderer(gl);
+  const gradient = new GradientRenderer(gl);
 
   let time = 0;
   gl.clearColor(1, 1, 1, 1);
@@ -29,17 +31,13 @@ const init = async () => {
 
     fire.setProjection(camera.combined);
     fire.begin(time);
-
-    // fire.shader.setUniform3fv("iResolution", [
-    //   viewport.getViewportInfo().width,
-    //   viewport.getViewportInfo().height,
-    //   viewport.getViewportInfo().width,
-    // ]);
-    // fire.shader.setUniformf("iTimeDelta", delta);
-    // fire.shader.setUniformf("iTime", time);
-    // fire.shader.setUniformf("iFrameRate", loop.getFps());
     fire.draw(10, 10, 100, 100);
     fire.end();
+
+    gradient.setProjection(camera.combined);
+    gradient.begin(time);
+    gradient.draw(10, 100, 500, 500);
+    gradient.end();
   });
 };
 

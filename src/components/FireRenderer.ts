@@ -6,6 +6,155 @@ import {
   TexCoordAttribute,
 } from "gdxts";
 
+const VS = /*glsl*/ `
+    attribute vec4 ${Shader.POSITION};
+    attribute vec2 ${Shader.TEXCOORDS};
+    // attribute vec4 ${Shader.COLOR};
+    uniform mat4 ${Shader.MVP_MATRIX};
+    varying vec2 v_texCoords;
+
+    void main () {
+      gl_Position = ${Shader.MVP_MATRIX} * ${Shader.POSITION};
+      v_texCoords = ${Shader.TEXCOORDS};
+    }
+    `;
+// const VS = /*glsl*/ `
+// attribute vec4 ${Shader.POSITION};
+// attribute vec2 ${Shader.TEXCOORDS};
+
+// uniform mat4 ${Shader.MVP_MATRIX};
+
+// varying vec4 v_color;
+// varying vec2 v_texCoords;
+
+// void main () {
+//   v_texCoords = ${Shader.TEXCOORDS};
+//   gl_Position = ${Shader.MVP_MATRIX} * ${Shader.POSITION};
+// }
+//     `;
+
+const FS = /*glsl*/ `
+    #ifdef GL_ES
+      #define LOWP lowp
+      precision highp float;
+    #else
+      #define LOWP
+    #endif
+
+    //vec4 fragColor;
+    // vec2 fragCoord;
+    uniform float iTime;
+    varying vec2 v_texCoords;
+
+    vec2 hash(vec2 p){
+        p = vec2( dot(p,vec2(137.1,373.7)), dot(p,vec2(269.5,183.7)) );
+        return fract(sin(p)*43758.37);
+    }
+
+    float worley(vec2 p){
+        vec2 n = floor(p);
+        vec2 f = fract(p);
+        float r = 1.;
+        for(int i=-2;i<=2;i++){
+        for(int j=-2;j<=2;j++){
+            vec2 o = hash(n+vec2(i,j));
+            o = sin(iTime/2. + hash(n+vec2(i,j))*6.28)*0.5+0.5;//animate
+            o += vec2(i,j);
+            float D1 = distance(o,f);//Euclidean
+            r = min(r,D1);
+        }
+        }
+        return r;
+    }
+
+    void main()
+    {
+        vec2 uv = v_texCoords;
+
+        float c = worley(uv + vec2(0.,-iTime))*0.5;
+        c += worley(uv*2.+vec2(sin(iTime*2.)*0.5,-iTime*6.))*0.5;//2 Layers worley
+        c += (-uv.y-0.3)*0.6;//y mask
+
+        vec2 p = uv;
+        p.x *=1.5+smoothstep(-0.3,1.,uv.y)*1.5;
+        float m = smoothstep(1.,.5,length(p));//circle mask
+
+        float c0 = smoothstep(.4,.6,m*c*3.);//out fire
+        float c1 = smoothstep(.5,.52,m*c*2.);//mid fire
+        float c2 = smoothstep(.5,.52,m*c*1.2*(-uv.y+0.3));//inner fire
+        float c3 = pow(worley(uv*6.+vec2(sin(iTime*4.)*1.,-iTime*16.)),8.);
+              c3 = smoothstep(.98,1.,c3)*m;//sparkle
+
+        vec3 col = vec3(1.,.4,.2)*c3;//sparkle
+        col = mix(col,vec3(.95,.1,.2)*(uv.y+.8),c0);//out
+        col = mix(col,mix(vec3(.9,.3,.2),vec3(.9,.6,.2),-uv.y),c1);//mid
+        col = mix(col,vec3(.9,.8,.2),c2);//inner
+
+        // Output to screen
+        gl_FragColor = vec4(col,1.0);
+    }
+    `;
+
+// const FS = /* glsl */ `
+// #ifdef GL_ES
+//   #define LOWP lowp
+//   precision mediump float;
+// #else
+//   #define LOWP
+// #endif
+// varying vec2 v_texCoords;
+// uniform float iTime;
+
+// vec2 hash(vec2 p){
+//     p = vec2( dot(p,vec2(137.1,373.7)), dot(p,vec2(269.5,183.7)) );
+//     return fract(sin(p)*43758.37);
+// }
+
+// float worley(vec2 p){
+//   vec2 n = floor(p);
+//   vec2 f = fract(p);
+//   float r = 1.;
+//   for(int i = -2; i <= 2; i++){
+//     for(int j = -2; j <= 2; j++){
+//       vec2 o = hash(n+vec2(i,j));
+//       o = sin(iTime/2. + hash(n+vec2(i,j))*6.28)*0.5+0.5; //animate
+//       o += vec2(i,j);
+//       float D1 = distance(o,f); //Euclidean
+//       r = min(r,D1);
+//     }
+//   }
+//   return r;
+// }
+
+// void main () {
+//   vec2 uv = v_texCoords;
+
+//   float c = worley(uv + vec2(0.,-iTime))*0.5;
+//   c += worley(uv*2.+vec2(sin(iTime*2.)*0.5,-iTime*6.))*0.5; //2 Layers worley
+//   c += (-uv.y-0.3)*0.6; //y mask
+
+//   vec2 p = uv;
+//   p.x *=1.5+smoothstep(-0.3,1.,uv.y)*1.5;
+//   float m = smoothstep(1.,.5,length(p)); //circle mask
+
+//   float c0 = smoothstep(.4,.6,m*c*3.); //out fire
+//   float c1 = smoothstep(.5,.52,m*c*2.); //mid fire
+//   float c2 = smoothstep(.5,.52,m*c*1.2*(-uv.y+0.3)); //inner fire
+//   float c3 = pow(worley(uv*6.+vec2(sin(iTime*4.)*1.,-iTime*16.)),8.);
+//         c3 = smoothstep(.98,1.,c3)*m; //sparkle
+
+//   vec3 col = vec3(1.,.4,.2)*c3; //sparkle
+//   col = mix(col, vec3(.95,.1,.2)*(uv.y+.8),c0); //out
+//   col = mix(col, mix(vec3(.9,.3,.2),vec3(.9,.6,.2),-uv.y),c1); //mid
+//   col = mix(col, vec3(.9,.8,.2),c2); //inner
+
+//   if (col.x != 0. && col.y != 0. && col.z != 0.) {
+//     gl_FragColor = vec4(col, 1.0);
+//   } else {
+//     gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+//   }
+// }
+// `;
 export class FireRenderer implements Disposable {
   context: WebGLRenderingContext;
   mesh: Mesh;
@@ -39,88 +188,6 @@ export class FireRenderer implements Disposable {
   }
 
   private newShader(context: WebGLRenderingContext): Shader {
-    const VS = /*glsl*/ `
-    // attribute vec2 ${Shader.TEXCOORDS};
-    attribute vec4 ${Shader.POSITION};
-    attribute vec4 ${Shader.COLOR};
-    uniform mat4 ${Shader.MVP_MATRIX};
-    varying vec4 v_color;
-    varying vec2 v_texCoords;
-
-    void main () {
-      v_color = ${Shader.COLOR};
-      gl_Position = ${Shader.MVP_MATRIX} * ${Shader.POSITION};
-      v_texCoords = vec2(0,1);
-    }
-    `;
-
-    const FS = /*glsl*/ `
-    #ifdef GL_ES
-      #define LOWP lowp
-      precision highp float;
-    #else
-      #define LOWP
-    #endif
-
-    //vec4 fragColor;
-    vec2 fragCoord; 
-    uniform mat4 ${Shader.MVP_MATRIX};
-    uniform float iTime;
-    //uniform vec3 iResolution;
-    varying vec2 v_texCoords;
-
-    // #define S(v,r) smoothstep( r, r+ 3./iResolution.y, v ) 
-    vec2 hash(vec2 p){
-        p = vec2( dot(p,vec2(137.1,373.7)), dot(p,vec2(269.5,183.7)) ); 
-        return fract(sin(p)*43758.37); 
-    }
-
-    float worley(vec2 p){
-        vec2 n = floor(p);
-        vec2 f = fract(p);
-        float r = 1.;
-        for(int i=-2;i<=2;i++){
-        for(int j=-2;j<=2;j++){
-            vec2 o = hash(n+vec2(i,j));
-            o = sin(iTime/2. + hash(n+vec2(i,j))*6.28)*0.5+0.5;//animate
-            o += vec2(i,j);
-            float D1 = distance(o,f);//Euclidean
-            r = min(r,D1);
-        }
-        }
-        return r;
-    }
-
-    void main()
-    {
-        vec2 uv = v_texCoords;
-
-        float c = worley(uv + vec2(0.,-iTime))*0.5;
-        c += worley(uv*2.+vec2(sin(iTime*2.)*0.5,-iTime*6.))*0.5;//2 Layers worley
-        c += (-uv.y-0.3)*0.6;//y mask
-        
-        vec2 p = uv;
-        p.x *=1.5+smoothstep(-0.3,1.,uv.y)*1.5;
-        float m = smoothstep(1.,.5,length(p));//circle mask
-        
-        float c0 = smoothstep(.4,.6,m*c*3.);//out fire
-        float c1 = smoothstep(.5,.52,m*c*2.);//mid fire
-        float c2 = smoothstep(.5,.52,m*c*1.2*(-uv.y+0.3));//inner fire
-        float c3 = pow(worley(uv*6.+vec2(sin(iTime*4.)*1.,-iTime*16.)),8.);
-              c3 = smoothstep(.98,1.,c3)*m;//sparkle
-
-        vec3 col = vec3(1.,.4,.2)*c3;//sparkle
-        col = mix(col,vec3(.95,.1,.2)*(uv.y+.8),c0);//out
-        col = mix(col,mix(vec3(.9,.3,.2),vec3(.9,.6,.2),-uv.y),c1);//mid
-        col = mix(col,vec3(.9,.8,.2),c2);//inner
-
-
-        // Output to screen
-        gl_FragColor = vec4(col,1.0);
-    }
-
-    
-    `;
     return new Shader(context, VS, FS);
   }
 
@@ -169,14 +236,14 @@ export class FireRenderer implements Disposable {
     const x4 = x;
     const y4 = y + height;
 
-    const u = 0;
-    const v = 0;
-    const u2 = 1;
-    const v2 = 0;
-    const u3 = 1;
-    const v3 = 1;
-    const u4 = 0;
-    const v4 = 1;
+    const u = 1;
+    const v = 1;
+    const u2 = -1;
+    const v2 = 1;
+    const u3 = -1;
+    const v3 = -1;
+    const u4 = 1;
+    const v4 = -1;
 
     if (!this.isDrawing)
       throw new Error("ShapeRenderer.begin() has not been called");
